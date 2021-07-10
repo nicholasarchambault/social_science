@@ -1,0 +1,302 @@
+---
+title: "Voting Patterns in the United Nations General Assembly"
+author: "Nicholas Archambault"
+date: "10 March 2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Introduction
+Member states of the United Nations (UN) are often politically divided on issues such as trade, nuclear disarmament, and human rights. This divide was especially pronounced during the height of the Cold War, when nations within the UN General Assembly tended to split into two factions, one supporting the United States and the other backing the Soviet Union. This project examines how nations' ideological positions, represented by their UN voting records, have evolved since the fall of the Soviet Union.
+
+Nations' preferences are measured by the UN voting data in two ways. One method utilizes the proportion of votes a nation casts that coincide with the votes of the United States and Soviet Union cast on the same issue. This metric is captured by the `PctAgree` variables; if a nation voted in agreement with the United States on six of 10 issues in a given year, that nation's `PctAgreeUS` value for that year would be 60. 
+
+The other method measures preference in terms of 'ideal points,' an academic tool used in international relations literature to capture nations' liberalism with regard to issues like political freedom, democratization, and financial liberalization. Larger ideal point values correspond to more liberal attitudes and a higher proportion of votes that agree with the United States.
+
+Variables and their descriptions can be found in the following table.
+
+Variable | Description
+---------|----------------------------------------------------------------------
+CountryName          | name of country
+CountryAbb           | abbreviated name of country
+idealpoint           | estimated ideal point of country
+g4reading            | year for which ideal point is estimated
+PctAgreeUS           | proportion of votes that match with votes cast by the United States on the same issue
+PctAgreeRU           | proportion of votes that match with votes cast by the Soviet Union on the same issue
+
+
+# 1. Plotting Ideal Points 
+To envision polarization within the General Assembly and how it evolved after the fall of the Soviet Union, we compare the distributions of ideal points across the entire voting body in 1980 and 2000.
+
+```{r}
+# Load the data
+vote <- read.csv("unvoting.csv", as.is = TRUE, stringsAsFactors = FALSE) 
+
+# Function to create plots for any year
+plotter <- function(year) {
+  hist(vote[vote$Year == year, "idealpoint"], freq = FALSE,
+       main = as.character(year),
+       sub = paste("S.D. =", 
+                   round(sd(vote[vote$Year == year, "idealpoint"], na.rm = T),
+                         2)),
+       xlab = "State Ideal Points",
+       breaks = 20,
+       xlim = c(-3, 3), 
+       ylim = c(0, 1), 
+       col = "gray")
+  
+  # Add median
+  abline(v = median(vote[vote$Year == year, "idealpoint"], na.rm = TRUE), 
+         lwd = 2.5, col = "red")
+  
+  # Add 25th and 75th percentiles to visualize polarization
+  abline(v = unname(summary(vote[vote$Year == year, "idealpoint"])[2]),
+         lwd = 2, lty = 2, col = "blue")
+  abline(v = unname(summary(vote[vote$Year == year, "idealpoint"])[5]),
+         lwd = 2, lty = 2, col = "blue")
+  
+  # Add legend
+  legend("topright", c("Median", "Quartiles"), col = c("red", "blue"), 
+         lty = c(1, 2), cex = 0.8)
+}
+
+# Make plots
+plotter(1980)
+plotter(2000)
+```
+
+While the ranges of the two data groups appear similar, the distributions and their spreads are not. Countries at the extremes --- those which are strongly liberal or illiberal --- exhibited more liberal voting patterns in 2000 than they did in 1980.  In 1980, the lower extent of the data reached nearly -2.5 ideal points; in 2000, it doesn't appear as if any nation's ideal point drops below -2. This finding is consistent with our historical intuition surrounding the rebirth of democracy in formerly authoritarian Central and Eastern European nations in the 1990's. 
+
+Although the medians of the two data groups remain similar, the broadening of the gap between the second and third quartiles reflects increased polarization in post-Soviet Union 2000 relative to 1980. The 2000 distribution seems nearly bi-modal, with two distinct peaks --- one slightly authoritarian and the other distinctly more liberal. The 1980 distribution, meanwhile, appears more concentrated around ideological neutrality: a large portion of its ideal points hover near zero.
+
+
+# 2. Voting Agreement with the United States
+Having established a clearer understanding of how polarization shifted after the fall of communism, we next examine how voting agreement with the United States and the Soviet Union (now Russia) among General Assembly members has evolved through the years. This can be visualized with a line plot of yearly average percentage agreement earned by the two superpowers.
+
+```{r}
+# Define average voting agreement through the years for U.S. and Russia
+avg_US <- tapply(vote$PctAgreeUS, vote$Year, mean, na.rm = TRUE)
+avg_Russia <- tapply(vote$PctAgreeRUSSIA, vote$Year, mean, na.rm = TRUE)
+
+# Create plot
+plot(unique(vote$Year), avg_US, 
+     main = "Percentage Agreement Through Time",
+     xlab = "Year",
+     ylab = "Average Percentage Agreement", ylim = c(0, 1),
+     type = "l", col = "navy")
+
+# Annotate to include Russia
+lines(unique(vote$Year), avg_Russia, col = "firebrick")
+text(2002, 0.8, "Russia")
+text(2002, 0.1, "United States")
+
+# Calculate maximum Russia-US voting gap
+max(avg_Russia - avg_US)
+
+# Calculate most recent Russia-US voting gap
+unname(avg_Russia[length(avg_Russia)] - avg_US[length(avg_US)])
+```
+
+Despite a slight uptick around 2010, support for American values among General Assembly members has steadily declined since 1946, leaving the U.S. increasingly ideologically isolated. In the late 1950's, America's voting agreement peaked, with around 65% of other members voting in line with the United States.  The data from 2012, the most recent year, places the percentage of agreement at just 20%.
+
+Modern-day Russia, meanwhile, appears to be growing less isolated. The Soviet Union's average agreement rate surpassed that of the U.S. in the early 1960's, and it has continued to climb ever since. Despite a large sudden drop-off around 1991, presumably due to the loss of its satellite states, support for the positions of the Soviet Union and Russia has remained high: in 2012, Russia's agreement rate hovered just above 60%.
+
+The gap between the two superpowers’ average agreement rates reached its apex in the late 1980's, when the Soviet Union maintained an agreement rate 75.5 percentage points greater than that of the United States. In 2012, the gap sat at 41.8 points, indicating that the U.S. had made up ideological ground in terms of accruing support among General Assembly member states.
+
+The `tapply()` function allows us to identify the nations that have, historically, most often agreed with American and Soviet Union or Russian votes. 
+
+```{r}
+# Identify top supporters of U.S. and Russia
+us_allies <- head(sort(tapply(vote$PctAgreeUS, vote$CountryName, mean, 
+                              na.rm = TRUE), decreasing = TRUE)[-1])
+knitr::kable(round(us_allies, 3), col.names = "Percent Agreement (U.S.)")
+
+
+russia_allies <- head(sort(tapply(vote$PctAgreeRUSSIA, vote$CountryName, mean, 
+                                  na.rm = TRUE), decreasing = TRUE)[-1])
+knitr::kable(round(russia_allies, 3), col.names = "Percent Agreement (Russia)")
+```
+
+The most consistent U.S. voters include the United Kingdom, Canada, and Israel, as well as some smaller nations that are dependent on American aid. None of the larger allies comes as a surprise --- Canada is a strong geopolitical partner and the United Kingdom a longstanding ally. The United States is a key protector and champion of Israel, Taiwan, and Palau; it is thus unsurprising that these states consistently support the American position.
+
+Consistent pro-Soviet or pro-Russia voters include a number of former Soviet satellites and republics: Poland, the GDR (East Germany), Czechoslovakia, Belarus, and Ukraine. Notably, the pro-Soviet/Russian cohort exhibits much greater ideological alignment with its leader state than the pro-American cohort does with the United States. This seems to make sense: before the dissolution of the Eastern Bloc, the firm adherence of satellite states to Soviet policy and ideology was demanded by Moscow.
+
+
+# 3. U.S. and Russian Ideal Points Through Time
+The use of agreement percentages as a measure of voting member support for the United States and Russia does not account for the fact that the ideological positions of the two countries themselves have likely evolved over time. We can visualize how American and Russian ideal points have changed through the years alongside the median ideal point of all General Assembly members.
+
+```{r}
+# Get ideal points for U.S. and Russia
+ideal_US <- vote[vote$CountryName == "United States of America", "idealpoint"]
+ideal_Russia <- vote[vote$CountryName == "Russia", "idealpoint"]
+
+# Plot evolution of ideology over time
+plot(unique(vote$Year), ideal_US, 
+     main = "Ideal Points Through Time",
+     xlab = "Year",
+     ylab = "Ideal Points", ylim = c(-3, 3),
+     type = "l", col = "navy")
+
+# Annotate to include Russia
+lines(unique(vote$Year), ideal_Russia, col = "firebrick")
+
+# Add global median
+lines(unique(vote$Year), 
+      tapply(vote$idealpoint, vote$Year, median, na.rm = TRUE),
+      col = "gray")
+
+# Add legend
+legend(1995, -1.5, legend = c("United States", "Russia", "UN Median"),
+       col = c("navy", "firebrick", "gray"), lty = c(1, 1, 1), cex = 0.6)
+```
+
+The ideological positions of both the United States and Russia have changed over time to vastly different degrees. The ideal point value of the United States has consistently stayed above 1; in recent decades, the U.S. became more liberal than it already was, climbing to an ideal point above 2.  In contrast, prior to the 1980's the Soviet Union exhibited a long period of illiberal voting --- its ideal point was vastly more authoritarian than the UN median.  The fall of the Eastern Bloc in 1989 and the Soviet Union in 1991, however, coincided with a substantial increase Russian liberalism. Since the 1990's, Russia's ideal point has crept back toward the median.
+
+The median ideal point among all General Assembly members has steadily descended into negative territory over time, crossing the zero threshold in the early 1970's and failing to return since. As of 2012, the median value sat at around -0.5.
+
+These results provide an interesting complement to our previous findings. It appears American ideology has remained distinctly liberal, becoming ever more so recently. Since we know that America's voting record has shifted more liberal, the finding from Section 2 --- that the average agreement rate with the United States is falling --- implies that other nations are leaning more authoritarian.  
+
+This conclusion is supported by an examination of Russia's ideal point trajectory. We previously observed a sharp dip in Russia's relatively high agreement rate around 1991, the year of the dissolution of the Soviet Union. The above plot shows that 1991 corresponds to an equally dramatic increase in Russia's ideal point. From this, we infer that the fall of the Soviet Union and contemporary Russian liberalization made Russia's positions \textit{less} appealing to fellow General Assembly members.  
+
+Overall, the trends signal a shift away from liberalism for many members states of the General Assembly, a finding in line with contemporary knowledge of the rise of authoritarianism and right-wing populism across Europe, America, and the world.
+
+
+# 4. Former Soviet States
+It seems likely that there exists an ideological and voting divide between former Soviet Union states and other, non-member states. We can visualize nations' positions along the ideological spectrum by plotting their ideal points against their 2012 U.S. agreement percentages.
+
+```{r}
+# Create list of former Soviet states
+soviets <- c("Estonia", "Latvia", "Lithuania", "Belarus", "Moldova", "Ukraine",
+             "Armenia", "Azerbaijan", "Georgia", "Kazakhstan", "Kyrgyzstan", 
+             "Tajikistan", "Turkmenistan", "Uzbekistan", "Russia")
+
+# Filter full dataset to include only Soviet states
+vote_soviets <- vote[vote$CountryName %in% soviets, ]
+
+# Create plot
+plot(vote[vote$Year == 2012, "idealpoint"], 
+     vote[vote$Year == 2012, "PctAgreeUS"], 
+     col = "darkgray",
+     main = "Former Soviet State Ideology, 2012",
+     xlab = "Ideal Points",
+     ylab = "Percentage of Votes Agreeing with U.S.",
+     xlim = c(-3, 3))
+
+# Highlight Soviet states
+points(vote_soviets[vote_soviets$Year == 2012, "idealpoint"],
+       vote_soviets[vote_soviets$Year == 2012, "PctAgreeUS"], 
+       pch = 17, col = "red")
+
+# Add legend
+legend(1.7, 0.15, legend = c("Former Soviet States"), 
+       col = c("red"), cex = 0.6, pch = 17)
+
+# Summarize ideal point ordering of former Soviet states
+soviet2012 <- 
+  vote_soviets[vote_soviets$Year == 2012, c("CountryName", "idealpoint")]
+
+knitr::kable(soviet2012[order(soviet2012$idealpoint), ], 
+             col.names = c("Country", "Ideal Points"), 
+             row.names = FALSE)
+```
+
+Most former Soviet states do not tend to strongly agree with the United States in their votes: none of these states cast a majority of their votes with the U.S. in 2012, and most only voted alongside the U.S. 20% to 30% of the time. Among the more liberal post-Soviet states were former European republics, a group that includes the three Baltic states --- Estonia, Lithuania, and Latvia --- as well as Ukraine, Moldova, and Georgia. The Central Asian republics --- Armenia, Kyrgyzstan, Kazakhstan, Turkmenistan, Tajikistan, Uzbekistan, and Azerbaijan --- rarely voted with the United States and generally exhibited more authoritarian ideologies, even relative to Russia.
+
+
+# 5. Tracking Median Ideal Points
+In the previous section, we found that some former Soviet states retained illiberal ideologies while others had liberalized substantially by 2012. It may be worth examining the ideological evolution of these states relative to other nations. We can do this by plotting the evolution of nations' median ideal points over time.
+
+```{r}
+# Filter data to exclude Soviet states
+vote_all <- vote[!vote$CountryName %in% soviets, ]
+
+# Create plot
+plot(unique(vote_all$Year), 
+     tapply(vote_all$idealpoint, vote_all$Year, median, na.rm = TRUE),
+     type = "l", col = "black", 
+     main = "Median Ideal Points Through Time",
+     xlab = "Year",
+     ylab = "Median Ideal Points",
+     ylim = c(-3, 2))
+
+# Annotate to include Soviet states
+lines(unique(vote_all$Year), 
+      tapply(vote_soviets$idealpoint, vote_soviets$Year, median, na.rm = TRUE),
+      col = "red")
+
+# Denote fall of Berlin Wall, 1989
+abline(v = 1989, col = "darkgray", lty = 2)
+text(1995, 1.8, "Fall of\nBerlin Wall", cex = 0.65, )
+
+# Add legend
+legend(1995, -2, legend = c("Former Soviet States", "Other States"), 
+       col = c("red", "black"), cex = 0.6, lty = 1)
+```
+
+As suspected from previous findings, the ideology of former Soviet states became drastically more liberal in the years immediately following the fall of the Berlin Wall. The median ideal point among Soviet states jumped above zero --- and the UN median --- and stayed there for over a decade, despite declining slightly between the mid-1990's and 2012. At least a portion of former Soviet states preserved semblances of liberal ideologies over the two decades following their liberation.
+
+Among non-Soviet states we observe a steady decline in median ideal point between 1946 and 2012.
+
+
+# 6. K-Means Clustering
+Following the collapse of the Soviet Union, former satellite states became ideologically diverse, with some shifting toward embracing liberal values as others maintained authoritarian-leaning tendencies. Is this type of ideological clustering true of the world at large?
+
+The k-means algorithm is an iterative algorithm in which operations are repeatedly performed until no discernible difference in results is produced. Frequently employed as a nonlinear classification technique in machine learning problems, k-means attempts to split data into $k$ groups, each associated with a *centroid*, a point equal to the within-group mean. The algorithm requires prior choosing of the value of $k$. It first assigns each observation to its closest cluster, then recomputes cluster centroids based on the new assignments. This process repeats until changes to the structure of the data no longer surpass a minimal threshold of alteration.
+
+In R, the base function `kmeans()` provides a straightforward method for performing k-means clustering. We can first standardize the ideal point and agreement percentage data so that both lie on the same scale, then run k-means clustering to visualize how nations' voting patterns naturally aligned themselves in 1989 and 2012.
+
+```{r}
+# Function that creates scaled matrix to feed into `kmeans()`
+binder <- function(year){
+  dataset <- cbind(vote[vote$Year == year, "idealpoint"], 
+                   vote[vote$Year == year, "PctAgreeUS"])
+  dataset <- scale(dataset)
+  return(dataset)
+}
+
+# Get matrices of results by year
+results1989 <- binder(1989)
+results2012 <- binder(2012)
+
+# Run kmeans()
+k1989 <- kmeans(results1989, centers = 2, nstart = 5)
+k2012 <- kmeans(results2012, centers = 2, nstart = 5)
+
+# Function to create plots based on input year
+kmeans_plot <- function(year, result, k_object){
+  plot(result, col = rgb(k_object$cluster - 1, 0, 2 - k_object$cluster, 0.5),
+       main = as.character(year),
+       xlab = "Ideal Points", 
+       ylab = "Percentage of Votes Agreeing with U.S.",
+       xlim = c(-2, 4),
+       ylim = c(-3, 9),
+       pch = 16)
+  points(k_object$centers, pch = 13, cex = 2)
+}
+
+# Get plots
+kmeans_plot(1989, results1989, k1989)
+kmeans_plot(2012, results2012, k2012)
+
+# Evaluate distances between centroids to understand polarization
+dist_1989 <- mahalanobis(k1989$centers[1, ], k1989$centers[2, ], diag(2)) 
+dist_2012 <- mahalanobis(k2012$centers[1, ], k2012$centers[2, ], diag(2))
+
+distances <- c(dist_1989, dist_2012)
+names(distances) <- c("1989", "2012")
+distances
+```
+
+K-means clustering reveals a near-linear correlation between ideal points and U.S. voting agreement in 2012, and a distinctly nonlinear relationship in 1989. The distance between cluster centers in 1989 is 9.19; in 2012 that distance falls to 6.63, though this is not strong proof of reduced polarization. 
+
+Overall, clusters appear to be more scattered in 2012 despite the reduced distance between cluster centroids. Aside from a single outlying data point, the 1989 clusters are more tightly grouped. By 2012, it appears voting patterns have diversified away from their homogeneous clumping of the past, especially among nations with negative ideal points.
+
+
+# Conclusion
+In this project, we examined data on voting tendencies within the United Nations General Assembly to determine how member nations have historically aligned themselves with liberal or authoritarian values. Ideological preferences were expressed by nations' tendencies to vote in accordance with either the United States or the Soviet Union, and by a measure of liberalization known as ideal points. 
+
+By visualizing how these metrics have changed among nations before and after the fall of the Soviet Union, we determined that ideological polarization has generally increased among General Assembly members. The ideological gulf separating the United States and Russia, after peaking in the 1980's, has diminished in the present day: Russia has become notably more liberal since breaking free of the Soviet Union, even as the rest of the world has leaned authoritarian. Former Soviet states have divided themselves into two clusters, one that increasingly embraces liberal values and another that maintains and extends Soviet authoritarianism. 
+
+This exercise was based in part on the 2015 work of Michael A. Bailey, Anton Strezhnev, and Erik Voeten: "Estimating dynamic state preferences from United Nations voting data," which appeared in the \textit{Journal of Conflict Resolution}.
+
